@@ -36,12 +36,34 @@ struct SPSA{ORDER,T,BT} <: AbstractOptimizer
     end
 end
 
+"""
+    SPSAState{T}
+
+SPSA state. Members are
+
+* `x` is current optimal
+* `m` is the iteration number
+* `neval` is the number of function evaluation
+* `Hk` is the estimated Hessian (only if ORDER == 2)
+* `step` is the current step
+
+Can be constructed as
+
+    SPSAState(x0)
+
+where `x0` is the intial guess.
+"""
 mutable struct SPSAState{T}
     x::Vector{T}
     m::Int
     neval::Int
     Hk::Matrix{T}
     step::Vector{T}
+end
+
+function SPSAState(x::AbstractVector{TX}) where TX
+    nx = length(x)
+    SPSAState(x, 0, 0, zeros(TX, nx, nx), one.(x))
 end
 
 function learning_rate(method::SPSA, k::Integer)
@@ -80,9 +102,8 @@ function Evolutionary.update_state!(objfun, state, population::Nothing, method::
 end
 
 function Evolutionary.optimize(objfun, x0::AbstractVector{TX}, opt::SPSA) where {TX}
-    y0 = objfun(x0)
     nx = length(x0)
-    state = SPSAState(x0, 0, 1, zeros(TX, nx, nx), one.(x0))
+    state = SPSAState(x0)
     converged = false
     for i = 1:opt.n
         if norm(state.step) < opt.ϵ

@@ -8,9 +8,9 @@ using IterativeSolvers
 using Evolutionary
 using Evolutionary: AbstractOptimizer
 
-import Evolutionary: CMAES, optimize
+import Evolutionary: CMAES, optimize, update_state!
 
-export CMAES, optimize
+export CMAES, optimize, update_state!
 
 include("mgd.jl")
 include("modified_mgd.jl")

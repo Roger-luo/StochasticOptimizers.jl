@@ -41,6 +41,25 @@ struct MGD{T,TI} <: AbstractMGD{T}
     end
 end
 
+"""
+    MGDState{XT, YT}
+
+Model gradient descent optimizer state. Members are
+
+* `x` is current optimal
+* `y` is current optimal function value
+* `m` is the iteration number
+* `neval` is the number of function evaluation
+* `step` is the current step
+* `fitted` is the fitted quadrature model
+* `fitting_error` is the error in the fitting of current quadrature model
+
+Can be constructed as
+
+    MGDState(x0, y0)
+
+where `x` is the intial guess.
+"""
 mutable struct MGDState{XT, YT}
     x::XT
     y::YT
@@ -49,6 +68,11 @@ mutable struct MGDState{XT, YT}
     step::XT
     fitted::Vector{Float64}
     fitting_error::Float64
+end
+
+function MGDState(x0, y0)
+    nx = length(x0)
+    MGDState(x0, y0, 0, 0, one.(x0), zeros(Float64, nx*(nx+1) ÷ 2 + nx + 1), NaN)
 end
 
 function Evolutionary.update_state!(objfun, state, population::Tuple{<:AbstractVector{TX}, <:AbstractVector{TY}}, method::AbstractMGD) where {TX,TY}
@@ -92,9 +116,10 @@ function Evolutionary.initial_population(opt::AbstractMGD, ::Tuple{TX,TY}) where
 end
 
 function Evolutionary.optimize(objfun, x0::TX, opt::AbstractMGD{TR}) where {TX, TR}
-    y0 = objfun(x0)
     nx = length(x0)
-    state = MGDState(x0, y0, 0, 1, one.(x0), zeros(Float64, nx*(nx+1) ÷ 2 + nx + 1), NaN)
+    y0 = objfun(x0)
+    state = MGDState(x0, y0)
+    state.neval += 1
     population = Evolutionary.initial_population(opt, (x0, y0))
     converged = false
     while true

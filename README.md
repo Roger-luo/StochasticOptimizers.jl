@@ -2,8 +2,8 @@
 
 Optimizers for noisy loss functions.
 
-[![Build Status](https://travis-ci.com/Happy-Diode/StochasticOptimizers.jl.svg?branch=master)](https://travis-ci.com/Happy-Diode/StochasticOptimizers.jl)
-[![Codecov](https://codecov.io/gh/Happy-Diode/StochasticOptimizers.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/Happy-Diode/StochasticOptimizers.jl)
+[![Build Status](https://travis-ci.com/GiggleLiu/StochasticOptimizers.jl.svg?branch=master)](https://travis-ci.com/GiggleLiu/StochasticOptimizers.jl)
+[![Codecov](https://codecov.io/gh/GiggleLiu/StochasticOptimizers.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/GiggleLiu/StochasticOptimizers.jl)
 
 
 ## Features
@@ -18,7 +18,7 @@ Optimizers for noisy loss functions.
 
 To install, open a Julia REPL, type `]` to enter `pkg` mode, then
 ```julia pkg
-pkg> add https://github.com/Happy-Diode/StochasticOptimizers.jl
+pkg> add https://github.com/GiggleLiu/StochasticOptimizers.jl
 ```
 
 Our interface is compatible with [Evolutionary.jl](https://github.com/wildart/Evolutionary.jl).
@@ -47,3 +47,5 @@ opt = MGD(γ=0.5, δ=0.6, k=10, A=2.0, ϵ=1e-8, n=10000)
 ```
 
 and other methods defined in [Evolutionary.jl](https://github.com/wildart/Evolutionary.jl).
+
+For step-wise update, see `examples/stepwise.jl`.

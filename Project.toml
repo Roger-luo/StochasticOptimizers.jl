@@ -1,6 +1,6 @@
 name = "StochasticOptimizers"
 uuid = "6d0aa2be-263f-4a4c-b1c1-c1fd5cb6ddc7"
-authors = ["Happy-Diode"]
+authors = ["GiggleLiu", "Roger-luo"]
 version = "0.1.0"
 
 [deps]
