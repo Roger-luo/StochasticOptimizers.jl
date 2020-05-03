@@ -23,8 +23,14 @@ pkg> add https://github.com/Happy-Diode/StochasticOptimizers.jl
 
 Our interface is compatible with [Evolutionary](https://github.com/wildart/Evolutionary.jl).
 To start using, open a Julia REPL and type
-```julia
-julia> optimizer = SPSA()
 
-julia> opt_result = optimize(f, x0, optimizer)
+```julia
+using StochasticOptimizers
+
+# define a loss
+rosenbrock(x) = (1.0 - x[1])^2 + 100.0 * (x[2] - x[1]^2)^2
+
+# optimize with first order SPSA
+opt = SPSA{1}(bounds=(-1, 2),γ=0.2, δ=0.1, n=20000, ϵ=1e-10)
+res = optimize(rosenbrock, randn(2), opt)
 ```
