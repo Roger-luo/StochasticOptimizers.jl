@@ -21,9 +21,10 @@ To install, open a Julia REPL, type `]` to enter `pkg` mode, then
 pkg> add https://github.com/Happy-Diode/StochasticOptimizers.jl
 ```
 
-To use, open a Julia REPL and type
+Our interface is compatible with [Evolutionary](https://github.com/wildart/Evolutionary.jl).
+To start using, open a Julia REPL and type
 ```julia
-julia> optimizer = CMAES()
+julia> optimizer = SPSA()
 
 julia> opt_result = optimize(f, x0, optimizer)
 ```

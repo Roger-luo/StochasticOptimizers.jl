@@ -6,6 +6,9 @@ using StaticArrays
 using LinearAlgebra
 using IterativeSolvers
 using Evolutionary
+using Evolutionary: AbstractOptimizer
+
+import Evolutionary: CMAES, optimize
 
 export CMAES, optimize
 

@@ -1,61 +1,98 @@
-"""
-Spall's implementation of SPSA algorithm.
+export SPSA
 
+"""
+    SPSA{ORDER,T,TI} <: AbstractOptimizer
+
+Spall's implementation of SPSA algorithm. `ORDER` can be `1` (first order) or `2` (second order).
+
+The constructor `SPSA{ORDER}(; kwargs...)` takes following keyword arguments:
+
+* `δ` and `ξ` are hyper-parameters that define the search region `δ/m^ξ`, where `m` is the step.
+* `γ`, `α` and `A` are hyper-parameters that define the learning rate `γ/(m+A)^α`
+* `ϵ` is the convergence tolerence
+
+## Reference
     Spall, J. C. (1998).
     Implementation of the simultaneous perturbation algorithm for stochastic optimization.
     IEEE Transactions on Aerospace and Electronic Systems.
     https://doi.org/10.1109/7.705889
 """
-
-export spsa
-
-"""
-second-order simultaneous perturbation stochastic approximation.
-
-Args:
-    f: loss function.
-    x0: initial variables.
-    bounds: lower bound and higher bound for variables, None for no bounds.
-    ac: initial learning rate and initial perturbation stength.
-    A: statbility constant.
-    alpha: decay rate for learning speed.
-    gamma: decay rate for perturbation strength.
-    maxiter: maximum number of iteration.
-
-Note:
-    The choice of parameters,
-    * `alpha` and `gamma` have thoretically valid default values 0.602 and 0.101.
-    * in hight noise setting, pick smaller `a` and larger `c`.
-"""
-function spsa(f, x0::AbstractVector{T};  bounds=nothing, ac=(0.2, 0.5), alpha=0.602,
-          A=nothing, gamma=0.101, maxiter=5000, secondorder=false) where T
-    if A === nothing
-        A = 0.1 * maxiter
-    end
-    a, c = ac
-
-    if secondorder
-        Hk = zeros(T, length(x0), length(x0))
-    end
-    for k in 1:maxiter
-        ak = a / (k + A)^alpha
-        ck = c / k^gamma
-        if secondorder
-            g, delta, pos, neg = _get_g(f, x0, ck)
-            Hk_ = _get_h(f, x0, ck, delta, pos, neg)
-            Hk .= ((k-1) / k) .* Hk .+ (1 / k) .* Hk_
-            x0 .-= ak .* (regularted_inv(Hk; delta=1e-5) * g)
-        else
-            g, fpos, fneg = _get_g(f, x0, ck)
-            x0 .-= ak .* g
+struct SPSA{ORDER,T,BT} <: AbstractOptimizer
+    δ::T
+    ξ::T
+    γ::T
+    α::T
+    A::T
+    ϵ::T
+    n::Int
+    bounds::BT
+    function SPSA{ORDER}(; δ=0.5, ξ=0.101, γ=0.1, α=0.602, n=10000, A=nothing, ϵ=1e-8, bounds=nothing) where ORDER
+        @instr promote(δ, ξ, γ, α, ϵ)
+        T = eltype(δ)
+        if A === nothing
+            A = T(0.1*n)
         end
-        @show f(x0)
-        if bounds !== nothing
-            clip!(x0, bounds...)
-        end
+        new{ORDER,T,typeof(bounds)}(δ, ξ, γ, α, A, ϵ, n, bounds)
     end
-    #return OptimizeResult(x=x0, fun=f(x0), success=true)
-    return x0
+end
+
+mutable struct SPSAState{T}
+    x::Vector{T}
+    m::Int
+    neval::Int
+    Hk::Matrix{T}
+    step::Vector{T}
+end
+
+function learning_rate(method::SPSA, k::Integer)
+    method.γ / (k + method.A)^method.α
+end
+
+function search_range(method::SPSA, k::Integer)
+    method.δ / k^method.ξ
+end
+
+function Evolutionary.update_state!(objfun, state, population::Nothing, method::SPSA{1})
+    state.m += 1
+    k = state.m
+    g, fpos, fneg = _get_g(objfun, state.x, search_range(method, k))
+    state.step = learning_rate(method, k) .* g
+    state.x .-= state.step
+    if method.bounds !== nothing
+        clip!(state.x, method.bounds...)
+    end
+    state.neval += 2
+end
+
+function Evolutionary.update_state!(objfun, state, population::Nothing, method::SPSA{2})
+    state.m += 1
+    k = state.m
+    ck = search_range(method, k)
+    g, delta, pos, neg = _get_g(objfun, state.x, ck)
+    Hk_ = _get_h(objfun, state.x, ck, delta, pos, neg)
+    state.Hk .= ((k-1) / k) .* state.Hk .+ (1 / k) .* Hk_
+    state.step = learning_rate(method, k) .* (regularted_inv(state.Hk; delta=1e-5) * g)
+    state.x .-= state.step
+    if method.bounds !== nothing
+        clip!(state.x, method.bounds...)
+    end
+    state.neval += 4
+end
+
+function Evolutionary.optimize(objfun, x0::AbstractVector{TX}, opt::SPSA) where {TX}
+    y0 = objfun(x0)
+    nx = length(x0)
+    state = SPSAState(x0, 0, 1, zeros(TX, nx, nx), one.(x0))
+    converged = false
+    for i = 1:opt.n
+        if norm(state.step) < opt.ϵ
+            converged = true
+            break
+        end
+        Evolutionary.update_state!(objfun, state, nothing, opt)
+    end
+    tr = Evolutionary.OptimizationTrace{Any, typeof(opt)}()
+    return Evolutionary.EvolutionaryOptimizationResults(opt, state.x, objfun(state.x), state.m, converged, converged, norm(state.step), tr, state.neval+1)
 end
 
 function clip!(x, a, b)
@@ -78,15 +115,15 @@ Args:
     noise_strength (float): the noise level (standard error of fun).
 
 Return:
-    (a, c): hyper parameters.
+    (γ, δ): hyper parameters.
 """
-function _hp_suggest(fun, x0, initial_step, noise_strength, alpha, A)
+function _hp_suggest(fun, x0, initial_step, noise_strength, α, A)
     num_eval = 10  # evaluate gradient 10 times to get the mean step.
-    c = noise_strength * 300 + 1e-4
-    g0 = sum(x->_get_g(fun, x0, c, return_hessian=false), 1:num_eval)/num_eval
+    δ = noise_strength * 300 + 1e-4
+    g0 = sum(x->_get_g(fun, x0, δ, return_hessian=false), 1:num_eval)/num_eval
     # use g0*ak = initial_step to set parameters
-    a = initial_step / g0 * (1 + A)^alpha
-    return a, c
+    γ = initial_step / g0 * (1 + A)^α
+    return γ, δ
 end
 
 

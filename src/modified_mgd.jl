@@ -1,46 +1,36 @@
+export MMGD
 """
-    modified_mgd(f, x0; δ, k, ϵ, n, p0, lr=0.5)
+    MMGD{T,TI} <: AbstractMGD{T}
 
-Modified model gradient descent.
-See `mgd` for input parameter informations.
+Modified model gradient descent method, the constructor takes following keyword arguments:
+
+* `δ` and `ξ` are hyper-parameters that define the search region `δ/m^ξ`, where `m` is the step.
+* `γ` is the learning rate, default to `0.5`
+* `ϵ` is the convergence tolerence
+* `k` is the population size
+* `n` is the maximum function evaluation
+
+For more information about hyper-parameters, see the appendix of: https://arxiv.org/pdf/2004.04197.pdf
 """
-function modified_mgd(f, x0::XT; δ, k, ϵ, n, p0, lr=0.5) where XT
-    m = 0
-    x = x0
-    params = p0
-    nx = length(x)
-    Lx = XT[]
-    Ly = Float64[]
-    neval = 0
-    while neval + k <= n
-        push!(Lx, copy(x))
-        push!(Ly, f(x))
-        println("Step $m, loss = $(Ly[end])")
-        for i in 1:k
-            x2 = rand_disk(x, δ)
-            push!(Lx, x2)
-            push!(Ly, f(x2))
-            neval += 1
-        end
-        Lx2 = XT[]
-        Ly2 = Float64[]
-        for (x2, y2) in zip(Lx, Ly)
-            if norm(x2 - x) <= δ + 1e-5
-                push!(Lx2, x2)
-                push!(Ly2, y2)
-            end
-        end
-        params = _fit(multivariate_quadratic, Lx2, Ly2, params)
-        x2, ismin = _optimal(multivariate_quadratic, params)
-        if norm(x .- x2) < ϵ
-            return x2
-        else
-            δ = norm(x .- x2)
-            x = ismin ? x + (x2-x)*lr : x - (x2-x)*lr
-        end
-        m += 1
+struct MMGD{T,TI} <: AbstractMGD{T}
+    δ::T
+    ξ::T
+    γ::T
+    ϵ::T
+    k::TI
+    n::TI
+    function MMGD(; δ=0.5, ξ=0.101, γ=0.5, ϵ=1e-8, k=10, n=10000)
+        @instr promote(δ, ξ, γ, ϵ)
+        @instr promote(k, n)
+        T = eltype(δ)
+        TI = eltype(k)
+        new{T,TI}(δ, ξ, γ, ϵ, k, n)
     end
-    return x
+end
+
+function opt_findnext(state, method::MMGD)
+    x2, ismin = _optimal(multivariate_quadratic, state.fitted)
+    ismin ? state.x + (x2-state.x)*method.γ : state.x - (x2-state.x)*method.γ
 end
 
 function _optimal(::typeof(multivariate_quadratic), params::AbstractVector{T}) where T

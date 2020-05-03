@@ -42,9 +42,9 @@ end
     #rosen(x) = (1.0 - x[1])^2 + 100.0 * (x[2] - x[1]^2)^2
     rosen(x) = (1.0 - x[1])^2 + 10.0 * (x[2] - x[1])^2
     x0 = [1.0, 1.0] .+ randn(2) .* 0.2
-    @show rosen(x0)
-    x = mgd(rosen, x0; γ=0.5, δ=0.6, k=10, α=1.0, A=2.0, ξ=1.5,
-                                ϵ=1e-8, n=1000,
-                                p0=randn(6))
-    @test isapprox(rosen(x), 0; atol=1e-3)
+    opt = MGD(γ=0.5, δ=0.6, k=10, A=2.0,
+                                ϵ=1e-8, n=10000)
+    res = optimize(rosen, x0, opt)
+    @show res
+    @test isapprox(res.minimum, 0; atol=1e-3)
 end
