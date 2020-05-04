@@ -96,7 +96,11 @@ function Evolutionary.update_state!(objfun, state, population::Tuple{<:AbstractV
         end
     end
     fitres = _fit(multivariate_quadratic, Lx2, Ly2, state.fitted)
-    state.fitted, state.fitting_error = fitres.param, fitres.resid[end]
+    state.fitted = fitres.param
+    if length(fitres.resid) > 0
+        @warn "Quadrature function fitting probably fails, try to use another parameter set for optimization?"
+        state.fitting_error = NaN
+    end
     x2 = opt_findnext(state, method)
     state.step = x2 - state.x
     state.x = x2
