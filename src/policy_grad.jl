@@ -100,16 +100,24 @@ update!(x::AbstractArray, x̄::Nothing) = nothing
 update!(opt, x::AbstractArray, x̄::Nothing) = nothing
 update!(opt, m::M, ∇m::Nothing) where M = nothing
 
+"""
+    PolicyGrad(;grad_optimizer=ADAGrad(), maxiter=2000, nsamples=100, showprogress=true)
+
+Policy gradient optimizer. The ansatz is a hard coded normal distribution for now.
+
+# Example
+
+```julia
+μ, sqrtσ = ones(2) + 1e-2 * randn(2), ones(2)
+μ, sqrtσ = optimize(noisy_rosenbrock, μ, sqrtσ , PolicyGrad(showprogress=false))
+expect = mean(noisy_rosenbrock(rand.(Normal.(μ, sqrtσ.^2))) for _ in 1:1000)
+```
+"""
 Base.@kwdef struct PolicyGrad <: AbstractOptimizer
     grad_optimizer=ADAGrad()
     maxiter::Int=2000
     nsamples::Int=100
     showprogress::Bool=true
-end
-
-struct PolicyGradResult{T}
-    μ::Vector{T}
-    sqrtσ::Vector{T}
 end
 
 function Evolutionary.optimize(f, μ0::AbstractVector, sqrtσ0::AbstractVector, opt::PolicyGrad)
