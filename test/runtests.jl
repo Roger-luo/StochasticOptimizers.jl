@@ -13,6 +13,10 @@ end
     include("modified_mgd.jl")
 end
 
+@testset "policy grad" begin
+    include("policy_grad.jl")
+end
+
 @testset "spsa" begin
     include("spsa.jl")
 end

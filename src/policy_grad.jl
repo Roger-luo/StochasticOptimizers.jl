@@ -1,6 +1,3 @@
-using Distributions
-using Zygote
-
 ignore(f) = f()
 Zygote.@adjoint ignore(f) = ignore(f), _->nothing
 
@@ -12,15 +9,18 @@ macro ignore(ex)
     end
 end
 
-Zygote.@adjoint function Distributions.normlogpdf(z::Number)
+Zygote.@adjoint function Distributions._normlogpdf(z::T) where T
     z1, back1 = pullback(abs2, z)
-    z2, back2 = pullback(x->-x/2, z1 + Distributions.log2π)
+    z2, back2 = pullback(+, z1, T(Distributions.log2π))
+    z3, back3 = pullback(x->-x/2, z2)
+
     function normlogpdf_pullback(Δ)
-        ∇z1, = back2(Δ)
+        ∇z2, = back3(Δ)
+        ∇z1, _ = back2(∇z2)
         ∇z = back1(∇z1)
         return ∇z
     end
-    return z2, normlogpdf_pullback
+    return z3, normlogpdf_pullback
 end
 
 export policy_gradient, ADAM, ADAGrad, update!, expect_loss
@@ -104,15 +104,28 @@ Base.@kwdef struct PolicyGrad <: AbstractOptimizer
     grad_optimizer=ADAGrad()
     maxiter::Int=2000
     nsamples::Int=100
+    showprogress::Bool=true
+end
+
+struct PolicyGradResult{T}
+    μ::Vector{T}
+    sqrtσ::Vector{T}
 end
 
 function Evolutionary.optimize(f, μ0::AbstractVector, sqrtσ0::AbstractVector, opt::PolicyGrad)
     μ, sqrtσ = copy(μ0), copy(sqrtσ0)
-    for _ in 1:opt.maxiter
-        gs = policy_gradient(f, μ, sqrtσ; nsamples=opt.nsamples)
-        update!(opt.grad_optimizer, (μ, sqrtσ), gs)
+
+    if opt.showprogress
+        @showprogress for _ in 1:opt.maxiter
+            gs = policy_gradient(f, μ, sqrtσ; nsamples=opt.nsamples)
+            update!(opt.grad_optimizer, (μ, sqrtσ), gs)
+        end
+    else
+        for _ in 1:opt.maxiter
+            gs = policy_gradient(f, μ, sqrtσ; nsamples=opt.nsamples)
+            update!(opt.grad_optimizer, (μ, sqrtσ), gs)
+        end
     end
 
-    d = Normal.(μ, sqrtσ)
-    return rand.(d)
+    return μ, sqrtσ
 end
