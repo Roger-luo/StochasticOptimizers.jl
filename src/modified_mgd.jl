@@ -1,6 +1,6 @@
 export MMGD
 """
-    MMGD{T,TI} <: AbstractMGD{T}
+    MMGD{T,TI,BT} <: AbstractMGD{T}
 
 Modified model gradient descent method, the constructor takes following keyword arguments:
 
@@ -9,28 +9,31 @@ Modified model gradient descent method, the constructor takes following keyword 
 * `ϵ` is the convergence tolerence
 * `k` is the population size
 * `n` is the maximum function evaluation
+* `bounds` is the parameter upper and lower bounds, default to nothing
 
 For more information about hyper-parameters, see the appendix of: https://arxiv.org/pdf/2004.04197.pdf
 """
-struct MMGD{T,TI} <: AbstractMGD{T}
+struct MMGD{T,TI,BT} <: AbstractMGD{T}
     δ::T
     ξ::T
     γ::T
     ϵ::T
     k::TI
     n::TI
+    bounds::BT
     function MMGD(; δ=0.5, ξ=0.101, γ=0.5, ϵ=1e-8, k=10, n=10000)
         @instr promote(δ, ξ, γ, ϵ)
         @instr promote(k, n)
         T = eltype(δ)
         TI = eltype(k)
-        new{T,TI}(δ, ξ, γ, ϵ, k, n)
+        new{T,TI,typeof(bounds)}(δ, ξ, γ, ϵ, k, n)
     end
 end
 
 function opt_findnext(state, method::MMGD)
     x2, ismin = _optimal(multivariate_quadratic, state.fitted)
-    ismin ? state.x + (x2-state.x)*method.γ : state.x - (x2-state.x)*method.γ
+    newx = ismin ? state.x + (x2-state.x)*method.γ : state.x - (x2-state.x)*method.γ
+    clip!(newx, method.bounds)
 end
 
 function _optimal(::typeof(multivariate_quadratic), params::AbstractVector{T}) where T
