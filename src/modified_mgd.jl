@@ -21,7 +21,7 @@ struct MMGD{T,TI,BT} <: AbstractMGD{T}
     k::TI
     n::TI
     bounds::BT
-    function MMGD(; δ=0.5, ξ=0.101, γ=0.5, ϵ=1e-8, k=10, n=10000)
+    function MMGD(; δ=0.5, ξ=0.101, γ=0.5, ϵ=1e-8, k=10, n=10000, bounds=nothing)
         @instr promote(δ, ξ, γ, ϵ)
         @instr promote(k, n)
         T = eltype(δ)
