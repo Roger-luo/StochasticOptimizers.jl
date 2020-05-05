@@ -11,7 +11,7 @@ end
     μ, sqrtσ = ones(2) + 1e-2 * randn(2), ones(2)
     # mean(noisy_rosenbrock(rand.(Normal.(μ, sqrtσ.^2))) for _ in 1:1000)
 
-    μ, sqrtσ = optimize(noisy_rosenbrock, μ, sqrtσ , PolicyGrad(showprogress=false))
+    μ, sqrtσ = optimize(noisy_rosenbrock, μ, sqrtσ , PolicyGrad())
     expect = mean(noisy_rosenbrock(rand.(Normal.(μ, sqrtσ.^2))) for _ in 1:1000)
 
     @test expect < 3

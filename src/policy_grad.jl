@@ -10,9 +10,9 @@ macro ignore(ex)
 end
 
 Zygote.@adjoint function Distributions._normlogpdf(z::T) where T
-    z1, back1 = pullback(abs2, z)
-    z2, back2 = pullback(+, z1, T(Distributions.log2π))
-    z3, back3 = pullback(x->-x/2, z2)
+    z1, back1 = Zygote.pullback(abs2, z)
+    z2, back2 = Zygote.pullback(+, z1, T(Distributions.log2π))
+    z3, back3 = Zygote.pullback(x->-x/2, z2)
 
     function normlogpdf_pullback(Δ)
         ∇z2, = back3(Δ)
@@ -41,6 +41,10 @@ function policy_gradient(f, μ::AbstractVector{T}, sqrtσ::AbstractVector{T}; ns
     return Zygote.gradient(μ, sqrtσ) do μ, sqrtσ
         logploss(f, μ, sqrtσ.^2; nsamples=nsamples)
     end
+
+    # fd_grad = ForwardDiff.gradient(hcat(μ, sqrtσ)) do x
+    #     logploss(f, x[:, 1], x[:, 2].^2; nsamples=nsamples)
+    # end
 end
 
 function expect_loss(f, μ::AbstractVector{T}, sqrtσ::AbstractVector{T}; nsamples::Int=1000) where T

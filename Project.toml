@@ -6,6 +6,7 @@ version = "0.1.0"
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Evolutionary = "86b6b26d-c046-49b6-aa0b-5f0f74682bd6"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LsqFit = "2fda8390-95c7-5789-9bda-21331edee243"

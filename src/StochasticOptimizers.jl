@@ -8,8 +8,8 @@ using IterativeSolvers
 using Evolutionary
 using Evolutionary: AbstractOptimizer
 using Distributions
-using Zygote
 using ProgressMeter
+import Zygote
 
 import Evolutionary: CMAES, optimize, update_state!
 
