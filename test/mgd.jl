@@ -49,3 +49,11 @@ end
     @show res
     @test isapprox(res.minimum, 0; atol=1e-3)
 end
+
+@testset "fallback #2" begin
+    rosenbrock(x) = (1.0 - x[1])^2 + 100.0 * (x[2] - x[1]^2)^2
+    opt = MGD(γ=0.5, δ=0.6, k=10, A=2.0, ϵ=1e-8, n=10000, bounds=(-1,2))
+    res = optimize(rosenbrock, randn(2), opt)
+    @show res
+    @test !isnan(res.minimum)
+end

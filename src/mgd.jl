@@ -8,7 +8,7 @@ end
 abstract type AbstractMGD{T} <: AbstractOptimizer end
 
 """
-    MGD{T,TI} <: AbstractMGD{T}
+    MGD{T,TI,BT} <: AbstractMGD{T}
 
 Model gradient descent method, the constructor takes following keyword arguments:
 
@@ -17,10 +17,11 @@ Model gradient descent method, the constructor takes following keyword arguments
 * `ϵ` is the convergence tolerence
 * `k` is the population size
 * `n` is the maximum function evaluation
+* `bounds` is the parameter upper and lower bounds, default to nothing
 
 For more information about hyper-parameters, see the appendix of: https://arxiv.org/pdf/2004.04197.pdf
 """
-struct MGD{T,TI} <: AbstractMGD{T}
+struct MGD{T,TI,BT} <: AbstractMGD{T}
     δ::T
     ξ::T
     γ::T
@@ -29,7 +30,8 @@ struct MGD{T,TI} <: AbstractMGD{T}
     ϵ::T
     k::TI
     n::TI
-    function MGD(; δ=0.5, ξ=0.101, γ=0.1, α=0.602, A=nothing, ϵ=1e-8, k=10, n=10000)
+    bounds::BT
+    function MGD(; δ=0.5, ξ=0.101, γ=0.1, α=0.602, A=nothing, ϵ=1e-8, k=10, n=10000, bounds=nothing)
         @instr promote(δ, ξ, γ, α, ϵ)
         @instr promote(k, n)
         T = eltype(δ)
@@ -37,7 +39,7 @@ struct MGD{T,TI} <: AbstractMGD{T}
         if A === nothing
             A = T(0.1*n/k)
         end
-        new{T,TI}(δ, ξ, γ, α, A, ϵ, k, n)
+        new{T,TI,typeof(bounds)}(δ, ξ, γ, α, A, ϵ, k, n, bounds)
     end
 end
 
@@ -96,7 +98,13 @@ function Evolutionary.update_state!(objfun, state, population::Tuple{<:AbstractV
         end
     end
     fitres = _fit(multivariate_quadratic, Lx2, Ly2, state.fitted)
-    state.fitted, state.fitting_error = fitres.param, fitres.resid[end]
+    state.fitted = fitres.param
+    if length(fitres.resid) == 0
+        @warn "Quadrature function fitting probably fails, try to use another parameter set for optimization?"
+        state.fitting_error = NaN
+    else
+        state.fitting_error = fitres.resid[end]
+    end
     x2 = opt_findnext(state, method)
     state.step = x2 - state.x
     state.x = x2
@@ -108,7 +116,8 @@ end
 function opt_findnext(state, method::MGD)
     g = NiLang.AD.gradient(Val(1), multivariate_quadratic, (0.0, state.x, state.fitted))[2]
     γ2 = method.γ/(state.m+1+method.A)^method.α
-    state.x .- γ2 .* g
+    newx = state.x .- γ2 .* g
+    clip!(newx, method.bounds)
 end
 
 function Evolutionary.initial_population(opt::AbstractMGD, ::Tuple{TX,TY}) where {TX,TY}

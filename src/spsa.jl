@@ -80,9 +80,7 @@ function Evolutionary.update_state!(objfun, state, population::Nothing, method::
     g, fpos, fneg = _get_g(objfun, state.x, search_range(method, k))
     state.step = learning_rate(method, k) .* g
     state.x .-= state.step
-    if method.bounds !== nothing
-        clip!(state.x, method.bounds...)
-    end
+    clip!(state.x, method.bounds)
     state.neval += 2
 end
 
@@ -95,9 +93,7 @@ function Evolutionary.update_state!(objfun, state, population::Nothing, method::
     state.Hk .= ((k-1) / k) .* state.Hk .+ (1 / k) .* Hk_
     state.step = learning_rate(method, k) .* (regularted_inv(state.Hk; delta=1e-5) * g)
     state.x .-= state.step
-    if method.bounds !== nothing
-        clip!(state.x, method.bounds...)
-    end
+    clip!(state.x, method.bounds)
     state.neval += 4
 end
 
@@ -116,7 +112,9 @@ function Evolutionary.optimize(objfun, x0::AbstractVector{TX}, opt::SPSA) where 
     return Evolutionary.EvolutionaryOptimizationResults(opt, state.x, objfun(state.x), state.m, converged, converged, norm(state.step), tr, state.neval+1)
 end
 
-function clip!(x, a, b)
+clip!(x, ab::Nothing) = x
+function clip!(x, ab::Tuple)
+    a, b = ab
     @inbounds for i = eachindex(x)
         if x[i] < a
             x[i] = a
@@ -124,6 +122,7 @@ function clip!(x, a, b)
             x[i] = b
         end
     end
+    return x
 end
 
 """
