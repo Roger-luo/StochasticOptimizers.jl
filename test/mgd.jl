@@ -1,5 +1,6 @@
 using LsqFit, StochasticOptimizers
 using StaticArrays, NiLang
+using NiLang.AD: Grad
 using Test, Random
 
 @testset "lsq fit" begin
@@ -32,7 +33,7 @@ end
     p = randn(6)
     res = StochasticOptimizers.multivariate_quadratic(0.0, x, p)[1]
     @test res ≈ p[1] + p[2]*x[1] + p[3]*x[2] + p[4]*x[1]^2 + p[5]*x[1]*x[2] + p[6]*x[2]^2
-    _, _, gx, gp = StochasticOptimizers.multivariate_quadratic'(Val(1), 0.0, x, p)
+    _, _, gx, gp = Grad(StochasticOptimizers.multivariate_quadratic)(Val(1), 0.0, x, p)
     @test NiLang.AD.grad(gx) ≈ [p[2]+p[4]*2*x[1]+p[5]*x[2], p[3]+p[6]*2*x[2]+p[5]*x[1]]
     @test NiLang.AD.grad(gp) ≈ [1, x[1], x[2], x[1]^2, x[1]*x[2], x[2]^2]
 end
