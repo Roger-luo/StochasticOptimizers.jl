@@ -23,29 +23,23 @@ struct SPSA{ORDER,T,BT} <: AbstractOptimizer
     γ::T
     α::T
     A::T
-    ϵ::T
-    n::Int
     bounds::BT
-    function SPSA{ORDER}(; δ=0.5, ξ=0.101, γ=0.1, α=0.602, n=10000, A=nothing, ϵ=1e-8, bounds=nothing) where ORDER
-        @instr promote(δ, ξ, γ, α, ϵ)
+    function SPSA{ORDER}(; δ=0.5, ξ=0.101, γ=0.1, α=0.602, A=10, bounds=nothing) where ORDER
+        @instr promote(δ, ξ, γ, α, A)
         T = eltype(δ)
-        if A === nothing
-            A = T(0.1*n)
-        end
-        new{ORDER,T,typeof(bounds)}(δ, ξ, γ, α, A, ϵ, n, bounds)
+        new{ORDER,T,typeof(bounds)}(δ, ξ, γ, α, A, bounds)
     end
 end
 
 """
-    SPSAState{T}
+    SPSAState{T} <: AbstractOptimizerState
 
 SPSA state. Members are
 
 * `x` is current optimal
 * `m` is the iteration number
-* `neval` is the number of function evaluation
 * `Hk` is the estimated Hessian (only if ORDER == 2)
-* `step` is the current step
+* `loss_history` is the estimated loss.
 
 Can be constructed as
 
@@ -53,17 +47,22 @@ Can be constructed as
 
 where `x0` is the intial guess.
 """
-mutable struct SPSAState{T}
+mutable struct SPSAState{T,YT} <: AbstractOptimizerState
     x::Vector{T}
     m::Int
-    neval::Int
     Hk::Matrix{T}
-    step::Vector{T}
+    loss_history::Vector{YT}
 end
 
-function SPSAState(x::AbstractVector{TX}) where TX
-    nx = length(x)
-    SPSAState(x, 0, 0, zeros(TX, nx, nx), one.(x))
+Evolutionary.minimizer(s::SPSAState) = s.x
+Evolutionary.value(s::SPSAState) = s.loss_history[end]
+Evolutionary.initial_population(method::SPSA, individual::AbstractVector) = [individual]
+Evolutionary.initial_state(method::SPSA, option, objfun, population) = SPSAState(first(population), Evolutionary.value(objfun, first(population)))
+Evolutionary.default_options(::SPSA) = (iterations=10000, abstol=1e-8)
+
+function SPSAState(x0::AbstractVector{TX}, y0) where TX
+    nx = length(x0)
+    SPSAState(x0, 0, zeros(TX, nx, nx), [y0])
 end
 
 function learning_rate(method::SPSA, k::Integer)
@@ -74,42 +73,28 @@ function search_range(method::SPSA, k::Integer)
     method.δ / k^method.ξ
 end
 
-function Evolutionary.update_state!(objfun, state, population::Nothing, method::SPSA{1})
+function Evolutionary.update_state!(objfun, state, population, method::SPSA{1})
     state.m += 1
     k = state.m
-    g, fpos, fneg = _get_g(objfun, state.x, search_range(method, k))
-    state.step = learning_rate(method, k) .* g
-    state.x .-= state.step
+    g, delta, fpos, fneg, fexpect = _get_g(objfun, state.x, search_range(method, k))
+    state.x .-= learning_rate(method, k) .* g
+    push!(state.loss_history, fexpect)
     clip!(state.x, method.bounds)
-    state.neval += 2
+    false
 end
 
-function Evolutionary.update_state!(objfun, state, population::Nothing, method::SPSA{2})
+function Evolutionary.update_state!(objfun, state, population, method::SPSA{2})
     state.m += 1
     k = state.m
     ck = search_range(method, k)
-    g, delta, pos, neg = _get_g(objfun, state.x, ck)
+    g, delta, pos, neg, fexpect = _get_g(objfun, state.x, ck)
+    push!(state.loss_history, fexpect)
     Hk_ = _get_h(objfun, state.x, ck, delta, pos, neg)
     state.Hk .= ((k-1) / k) .* state.Hk .+ (1 / k) .* Hk_
-    state.step = learning_rate(method, k) .* (regularted_inv(state.Hk; delta=1e-5) * g)
-    state.x .-= state.step
+    step = learning_rate(method, k) .* (regularted_inv(state.Hk; delta=1e-5) * g)
+    state.x .-= step
     clip!(state.x, method.bounds)
-    state.neval += 4
-end
-
-function Evolutionary.optimize(objfun, x0::AbstractVector{TX}, opt::SPSA) where {TX}
-    nx = length(x0)
-    state = SPSAState(x0)
-    converged = false
-    for i = 1:opt.n
-        if norm(state.step) < opt.ϵ
-            converged = true
-            break
-        end
-        Evolutionary.update_state!(objfun, state, nothing, opt)
-    end
-    tr = Evolutionary.OptimizationTrace{Any, typeof(opt)}()
-    return Evolutionary.EvolutionaryOptimizationResults(opt, state.x, objfun(state.x), state.m, converged, converged, norm(state.step), tr, state.neval+1)
+    false
 end
 
 clip!(x, ab::Nothing) = x
@@ -155,16 +140,17 @@ function _get_g(fun, x0, ck)
     delta = rand([-1,1], p) .* ck
     xpos = x0 .+ delta
     xneg = x0 .- delta
-    fpos, fneg = fun(xpos), fun(xneg)
-    (fpos - fneg) ./ (2 .* delta), delta, (xpos, fpos), (xneg, fneg)
+    fpos, fneg = Evolutionary.value(fun, xpos), Evolutionary.value(fun,xneg)
+    fexpect = (fpos + fneg)/2
+    (fpos - fneg) ./ (2 .* delta), delta, (xpos, fpos), (xneg, fneg), fexpect
 end
 
 function _get_h(fun, x0, ck, delta, pos, neg)
     xpos, fpos = pos
     xneg, fneg = neg
     delta1 = rand([-1,1], length(x0)) .* ck
-    fneg_ = fun(xneg .+ delta1)
-    fpos_ = fun(xpos .+ delta1)
+    fneg_ = Evolutionary.value(fun, xneg .+ delta1)
+    fpos_ = Evolutionary.value(fun, xpos .+ delta1)
     g1n = (fneg_ - fneg) ./ delta1
     g1p = (fpos_ - fpos) ./ delta1
     hessian = (g1p .- g1n) ./ 4. ./ delta'

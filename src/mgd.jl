@@ -27,19 +27,18 @@ struct MGD{T,TI,BT} <: AbstractMGD{T}
     γ::T
     α::T
     A::T
-    ϵ::T
     k::TI
     n::TI
     bounds::BT
-    function MGD(; δ=0.5, ξ=0.101, γ=0.1, α=0.602, A=nothing, ϵ=1e-8, k=10, n=10000, bounds=nothing)
-        @instr promote(δ, ξ, γ, α, ϵ)
+    function MGD(; δ=0.5, ξ=0.101, γ=0.1, α=0.602, A=nothing, k=10, n=10000, bounds=nothing)
+        @instr promote(δ, ξ, γ, α)
         @instr promote(k, n)
         T = eltype(δ)
         TI = eltype(k)
         if A === nothing
             A = T(0.1*n/k)
         end
-        new{T,TI,typeof(bounds)}(δ, ξ, γ, α, A, ϵ, k, n, bounds)
+        new{T,TI,typeof(bounds)}(δ, ξ, γ, α, A, k, n, bounds)
     end
 end
 
@@ -51,8 +50,6 @@ Model gradient descent optimizer state. Members are
 * `x` is current optimal
 * `y` is current optimal function value
 * `m` is the iteration number
-* `neval` is the number of function evaluation
-* `step` is the current step
 * `fitted` is the fitted quadrature model
 * `fitting_error` is the error in the fitting of current quadrature model
 
@@ -62,36 +59,39 @@ Can be constructed as
 
 where `x` is the intial guess.
 """
-mutable struct MGDState{XT, YT}
+mutable struct MGDState{XT, YT} <: AbstractOptimizerState
     x::XT
-    y::YT
     m::Int
-    neval::Int
-    step::XT
+    ys::Vector{YT}
     fitted::Vector{Float64}
     fitting_error::Float64
 end
 
 function MGDState(x0, y0)
     nx = length(x0)
-    MGDState(x0, y0, 0, 0, one.(x0), zeros(Float64, nx*(nx+1) ÷ 2 + nx + 1), NaN)
+    MGDState(x0, 0, [y0], zeros(Float64, nx*(nx+1) ÷ 2 + nx + 1), NaN)
 end
 
-function Evolutionary.update_state!(objfun, state, population::Tuple{<:AbstractVector{TX}, <:AbstractVector{TY}}, method::AbstractMGD) where {TX,TY}
-    Lx, Ly = population
+Evolutionary.minimizer(s::MGDState) = s.x
+Evolutionary.value(s::MGDState) = s.ys[end]
+Evolutionary.initial_population(method::AbstractMGD, individual::AbstractVector) = [individual]
+function Evolutionary.initial_state(method::AbstractMGD, option, objfun, population)
+    y = Evolutionary.value(objfun, first(population))
+    MGDState(first(population), y)
+end
+Evolutionary.default_options(::AbstractMGD) = (iterations=10000, abstol=1e-8)
+
+function Evolutionary.update_state!(objfun, state::MGDState{TX,TY}, population::AbstractVector{TX}, method::AbstractMGD) where {TX,TY}
     δ, ξ, γ, k = method.δ, method.ξ, method.γ, method.k
-    push!(Lx, copy(state.x))
-    push!(Ly, state.y)
     δi = δ/(state.m+1)^ξ
     for i in 1:k
         x2 = rand_disk(state.x, δi)
-        push!(Lx, x2)
-        push!(Ly, objfun(x2))
-        state.neval += 1
+        push!(population, x2)
+        push!(state.ys, Evolutionary.value(objfun, x2))
     end
     Lx2 = TX[]
     Ly2 = TY[]
-    for (x2, y2) in zip(Lx, Ly)
+    for (x2, y2) in zip(population, state.ys)
         if norm(x2 - state.x) <= δi
             push!(Lx2, x2)
             push!(Ly2, y2)
@@ -106,11 +106,12 @@ function Evolutionary.update_state!(objfun, state, population::Tuple{<:AbstractV
         state.fitting_error = fitres.resid[end]
     end
     x2 = opt_findnext(state, method)
-    state.step = x2 - state.x
     state.x = x2
-    state.y = objfun(state.x)
-    state.neval += 1
+    y = Evolutionary.value(objfun, state.x)
+    push!(population, copy(state.x))
+    push!(state.ys, y)
     state.m += 1
+    Evolutionary.f_calls(objfun) >= method.n
 end
 
 function opt_findnext(state, method::MGD)
@@ -118,30 +119,6 @@ function opt_findnext(state, method::MGD)
     γ2 = method.γ/(state.m+1+method.A)^method.α
     newx = state.x .- γ2 .* g
     clip!(newx, method.bounds)
-end
-
-function Evolutionary.initial_population(opt::AbstractMGD, ::Tuple{TX,TY}) where {TX,TY}
-    TX[], TY[]
-end
-
-function Evolutionary.optimize(objfun, x0::TX, opt::AbstractMGD{TR}) where {TX, TR}
-    nx = length(x0)
-    y0 = objfun(x0)
-    state = MGDState(x0, y0)
-    state.neval += 1
-    population = Evolutionary.initial_population(opt, (x0, y0))
-    converged = false
-    while true
-        if state.neval + opt.k > opt.n
-            break
-        elseif norm(state.step) < opt.ϵ
-            converged = true
-            break
-        end
-        Evolutionary.update_state!(objfun, state, population, opt)
-    end
-    tr = Evolutionary.OptimizationTrace{Any, typeof(opt)}()
-    return Evolutionary.EvolutionaryOptimizationResults(opt, state.x, state.y, state.m, converged, converged, norm(state.step), tr, state.neval)
 end
 
 function rand_disk(x, δi)

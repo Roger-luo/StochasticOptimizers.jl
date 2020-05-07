@@ -1,11 +1,14 @@
 using StochasticOptimizers
+using StochasticOptimizers: value
 
-function optroutine(objfun, x0::AbstractVector{TX}, opt::SPSA) where {TX}
-    # define a state
-    state = StochasticOptimizers.SPSAState(x0)
-    for i = 1:opt.n
+function optroutine(f, x0::AbstractVector{TX}, opt::SPSA; max_call) where {TX}
+    # define the objective and state
+    objfun = NonDifferentiable(f, x0)
+    state = StochasticOptimizers.SPSAState(x0, value(objfun, x0))
+    for i = 1:10000
         # convergence condition
-        norm(state.step) < opt.ϵ && break
+        f_calls(objfun) > max_call && break
+        x_pre = state.x
 
         # update state
         update_state!(objfun, state, nothing, opt)
@@ -14,10 +17,9 @@ function optroutine(objfun, x0::AbstractVector{TX}, opt::SPSA) where {TX}
         i % 100 == 1 && println("""
 # Summary
     iteration: $(state.m),
-    nfeval: $(state.neval),
+    nfeval: $(f_calls(objfun)),
     optimal x: $(state.x),
-    optimal f: $(objfun(state.x)),
-    current step: $(state.step).
+    optimal f: $(value(state)),
 """)
     end
 end
@@ -25,5 +27,5 @@ end
 rosenbrock(x) = (1.0 - x[1])^2 + 100.0 * (x[2] - x[1]^2)^2
 
 # optimize with first order SPSA
-opt = SPSA{1}(bounds=(-1, 2),γ=0.2, δ=0.1, n=20000, ϵ=1e-10)
-res = optroutine(rosenbrock, randn(2), opt)
+opt = SPSA{1}(bounds=(-1, 2),γ=0.2, δ=0.1)
+res = optroutine(rosenbrock, randn(2), opt; max_call=10000)

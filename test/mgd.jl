@@ -39,20 +39,20 @@ end
 end
 
 @testset "test optimization" begin
-    Random.seed!(6)
+    Random.seed!(9)
     #rosen(x) = (1.0 - x[1])^2 + 100.0 * (x[2] - x[1]^2)^2
     rosen(x) = (1.0 - x[1])^2 + 10.0 * (x[2] - x[1])^2
-    x0 = [1.0, 1.0] .+ randn(2) .* 0.2
-    opt = MGD(γ=0.5, δ=0.6, k=10, A=2.0,
-                                ϵ=1e-8, n=10000)
-    res = optimize(rosen, x0, opt)
+    x0 = [1.0, 1.0] .+ randn(2)
+    opt = MGD(γ=0.5, δ=0.6, k=10, A=2.0, n=10000)
+    res = optimize(rosen, x0, opt, Options(store_trace=true, iterations=10000))
     @show res
+    @test length(trace(res)) > 1
     @test isapprox(res.minimum, 0; atol=1e-3)
 end
 
 @testset "fallback #2" begin
     rosenbrock(x) = (1.0 - x[1])^2 + 100.0 * (x[2] - x[1]^2)^2
-    opt = MGD(γ=0.5, δ=0.6, k=10, A=2.0, ϵ=1e-8, n=10000, bounds=(-1,2))
+    opt = MGD(γ=0.5, δ=0.6, k=10, A=2.0, n=10000, bounds=(-1,2))
     res = optimize(rosenbrock, randn(2), opt)
     @show res
     @test !isnan(res.minimum)

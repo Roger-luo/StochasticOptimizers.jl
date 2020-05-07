@@ -5,7 +5,7 @@ using Test, Random
 @testset "test optimization" begin
     Random.seed!(6)
     params = [1.0, 2.0, -2.0, 1.0, 0.0, 1.0]
-    _optimal(multivariate_quadratic, params) == [-1.0, 1.0]
+    @test _optimal(multivariate_quadratic, params)[1] ≈ [-1.0, 1.0]
 end
 
 @testset "test optimization" begin
