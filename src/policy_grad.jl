@@ -1,50 +1,21 @@
-ignore(f) = f()
-Zygote.@adjoint ignore(f) = ignore(f), _->nothing
-
-macro ignore(ex)
-    quote
-        ignore() do
-            $(esc(ex))
-        end
-    end
-end
-
-Zygote.@adjoint function Distributions._normlogpdf(z::T) where T
-    z1, back1 = Zygote.pullback(abs2, z)
-    z2, back2 = Zygote.pullback(+, z1, T(Distributions.log2π))
-    z3, back3 = Zygote.pullback(x->-x/2, z2)
-
-    function normlogpdf_pullback(Δ)
-        ∇z2, = back3(Δ)
-        ∇z1, _ = back2(∇z2)
-        ∇z = back1(∇z1)
-        return ∇z
-    end
-    return z3, normlogpdf_pullback
-end
-
 export policy_gradient, ADAM, ADAGrad, update!, expect_loss
 
 function logploss(f, μ::AbstractVector{T}, σ::AbstractVector{T}; nsamples::Int=1000) where T
     ps = Normal.(μ, σ)
     expect_logploss = zero(T)
     for _ in 1:nsamples
-        θs = @ignore rand.(ps)
+        θs = rand.(Normal.(ForwardDiff.value.(μ), ForwardDiff.value.(σ)))
         logp = sum(logpdf.(ps, θs))
-        l = @ignore f(θs)
-        expect_logploss += l * logp
+        expect_logploss += f(θs) * logp
     end
     return expect_logploss / nsamples
 end
 
 function policy_gradient(f, μ::AbstractVector{T}, sqrtσ::AbstractVector{T}; nsamples::Int=1000) where T
-    return Zygote.gradient(μ, sqrtσ) do μ, sqrtσ
-        logploss(f, μ, sqrtσ.^2; nsamples=nsamples)
+    fd_grad = ForwardDiff.gradient(hcat(μ, sqrtσ)) do x
+        logploss(f, x[:, 1], x[:, 2].^2; nsamples=nsamples)
     end
-
-    # fd_grad = ForwardDiff.gradient(hcat(μ, sqrtσ)) do x
-    #     logploss(f, x[:, 1], x[:, 2].^2; nsamples=nsamples)
-    # end
+    return fd_grad[:,1], fd_grad[:,2]
 end
 
 function expect_loss(f, μ::AbstractVector{T}, sqrtσ::AbstractVector{T}; nsamples::Int=1000) where T
