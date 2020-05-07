@@ -9,7 +9,7 @@ using Evolutionary
 using Evolutionary: AbstractOptimizer
 using Distributions
 using ProgressMeter
-import Zygote
+using ForwardDiff
 
 import Evolutionary: CMAES, optimize, update_state!
 
