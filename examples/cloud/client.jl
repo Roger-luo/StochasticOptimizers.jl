@@ -22,6 +22,7 @@ function cloud_f(postfunc; params_ncol::Int, port::Int,
         end
 
         # send file
+        # you might want to rescale your data here
         k += 1
         ifname = joinpath(output_folder, "Parameters_$k.dat")
         if isfile(ifname) && !overwrite_file

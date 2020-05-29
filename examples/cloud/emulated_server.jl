@@ -24,7 +24,7 @@ display(res)
 println("The maximum independent set size is $(exact_solve_mis(graph)).")
 
 # start up a service at port 2020.
-run_server(cfg; port=2020, output_folder=joinpath(@__DIR__, "data"))
+run_server(cfg; port=2021, output_folder=joinpath(@__DIR__, "data"))
 
 #=
 # To implement a new backend
