@@ -9,7 +9,7 @@ loss = cloud_f(postfunc; params_ncol=2, port=2021,
 
 # optimize with first order SPSA
 #opt = SPSA{1}(bounds=(-1, 2),γ=0.2, δ=0.1)
-opt = CMAES(μ=8, λ=40)
+opt = CMAES(μ=20, λ=100)
 
 using Random
 Random.seed!(2)
