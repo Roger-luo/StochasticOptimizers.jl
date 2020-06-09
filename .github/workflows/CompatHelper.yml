@@ -1,8 +1,6 @@
 name: CompatHelper
 
-on:
-  schedule:
-    - cron: '0/2 * * * *'
+on: push
 
 jobs:
   CompatHelper:
