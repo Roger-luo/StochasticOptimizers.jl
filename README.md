@@ -2,7 +2,7 @@
 
 Optimizers for noisy loss functions.
 
-[![Build Status](https://travis-ci.com/GiggleLiu/StochasticOptimizers.jl.svg?branch=master)](https://travis-ci.com/GiggleLiu/StochasticOptimizers.jl)
+![tests](https://github.com/Happy-Diode/StochasticOptimizers.jl/workflows/tests/badge.svg)
 [![Codecov](https://codecov.io/gh/GiggleLiu/StochasticOptimizers.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/GiggleLiu/StochasticOptimizers.jl)
 
 
